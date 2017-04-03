@@ -15,9 +15,10 @@ type Writer struct {
 	logGroupName      string
 	logStreamName     string
 	nextSequenceToken string
+	messageOnly       bool
 }
 
-func NewWriter(sess *awsSession.Session, logGroupName, logStreamName, firstSeqToken string) (*Writer, error) {
+func NewWriter(sess *awsSession.Session, logGroupName, logStreamName, firstSeqToken string, messageOnly bool) (*Writer, error) {
 	conn := cloudwatchlogs.New(sess)
 
 	return &Writer{
@@ -25,6 +26,7 @@ func NewWriter(sess *awsSession.Session, logGroupName, logStreamName, firstSeqTo
 		logGroupName:      logGroupName,
 		logStreamName:     logStreamName,
 		nextSequenceToken: firstSeqToken,
+		messageOnly:       messageOnly,
 	}, nil
 }
 
@@ -32,11 +34,16 @@ func (w *Writer) WriteBatch(records []Record) (string, error) {
 
 	events := make([]*cloudwatchlogs.InputLogEvent, 0, len(records))
 	for _, record := range records {
-		jsonDataBytes, err := json.MarshalIndent(record, "", "  ")
-		if err != nil {
-			return "", err
+		var jsonData string
+		if w.messageOnly {
+			jsonData = record.Message
+		} else {
+			jsonDataBytes, err := json.MarshalIndent(record, "", "  ")
+			if err != nil {
+				return "", err
+			}
+			jsonData = string(jsonDataBytes)
 		}
-		jsonData := string(jsonDataBytes)
 
 		events = append(events, &cloudwatchlogs.InputLogEvent{
 			Message:   aws.String(jsonData),

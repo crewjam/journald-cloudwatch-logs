@@ -74,6 +74,7 @@ func run(configFilename string) error {
 		config.LogGroupName,
 		config.LogStreamName,
 		nextSeq,
+		config.MessageOnly,
 	)
 	if err != nil {
 		return fmt.Errorf("error initializing writer: %s", err)
@@ -115,7 +116,7 @@ func run(configFilename string) error {
 	records := make(chan Record)
 	batches := make(chan []Record)
 
-	go ReadRecords(config.EC2InstanceId, journal, records, skip)
+	go ReadRecords(config.EC2InstanceId, journal, records, skip, config.Units)
 	go BatchRecords(records, batches, bufSize)
 
 	for batch := range batches {

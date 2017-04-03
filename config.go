@@ -26,17 +26,21 @@ type Config struct {
 	StateFilename  string
 	JournalDir     string
 	BufferSize     int
+	Units          []string
+	MessageOnly    bool
 }
 
 type fileConfig struct {
-	AWSRegion     string `hcl:"aws_region"`
-	EC2InstanceId string `hcl:"ec2_instance_id"`
-	LogGroupName  string `hcl:"log_group"`
-	LogStreamName string `hcl:"log_stream"`
-	LogPriority   string `hcl:"log_priority"`
-	StateFilename string `hcl:"state_file"`
-	JournalDir    string `hcl:"journal_dir"`
-	BufferSize    int    `hcl:"buffer_size"`
+	AWSRegion     string   `hcl:"aws_region"`
+	EC2InstanceId string   `hcl:"ec2_instance_id"`
+	LogGroupName  string   `hcl:"log_group"`
+	LogStreamName string   `hcl:"log_stream"`
+	LogPriority   string   `hcl:"log_priority"`
+	StateFilename string   `hcl:"state_file"`
+	JournalDir    string   `hcl:"journal_dir"`
+	BufferSize    int      `hcl:"buffer_size"`
+	Units         []string `hcl:"units"`
+	MessageOnly   bool     `hcl:"message_only"`
 }
 
 func getLogLevel(priority string) (Priority, error) {
@@ -127,6 +131,8 @@ func LoadConfig(filename string) (*Config, error) {
 
 	config.StateFilename = fConfig.StateFilename
 	config.JournalDir = fConfig.JournalDir
+	config.Units = fConfig.Units
+	config.MessageOnly = fConfig.MessageOnly
 
 	if fConfig.BufferSize != 0 {
 		config.BufferSize = fConfig.BufferSize
@@ -153,7 +159,6 @@ func (c *Config) NewAWSSession() *awsSession.Session {
 	return awsSession.New(config)
 }
 
-
 /*
  * Expand variables of the form $Foo or ${Foo} in the user provided config
  * from the EC2Metadata Instance Identity Document
@@ -167,12 +172,12 @@ func expandFileConfig(config *fileConfig, metaClient *ec2metadata.EC2Metadata) {
 	// struct extracting the string fields and their values into the vars map
 	data, err := metaClient.GetInstanceIdentityDocument()
 	if err == nil {
-		metadata := reflect.ValueOf( data )
+		metadata := reflect.ValueOf(data)
 
 		for i := 0; i < metadata.NumField(); i++ {
 			field := metadata.Field(i)
 			ftype := metadata.Type().Field(i)
-			if (field.Type() != reflect.TypeOf("")) {
+			if field.Type() != reflect.TypeOf("") {
 				continue
 			}
 			vars[ftype.Name] = fmt.Sprintf("%v", field.Interface())
@@ -199,8 +204,8 @@ func expandFileConfig(config *fileConfig, metaClient *ec2metadata.EC2Metadata) {
 								return val
 							}
 							// Unknown key => empty string
-							return "" 
-						} else if (strings.HasPrefix(varname, "env.")) {
+							return ""
+						} else if strings.HasPrefix(varname, "env.") {
 							return os.Getenv(strings.TrimPrefix(varname, "env."))
 						} else {
 							// Unknown prefix => empty string
@@ -213,7 +218,6 @@ func expandFileConfig(config *fileConfig, metaClient *ec2metadata.EC2Metadata) {
 	}
 }
 
-
 // Modified version of os.Expand() that only expands ${name} and not $name
 func expandBraceVars(s string, mapping func(string) string) string {
 	buf := make([]byte, 0, 2*len(s))
@@ -223,10 +227,10 @@ func expandBraceVars(s string, mapping func(string) string) string {
 		if s[j] == '$' && j+3 < len(s) && s[j+1] == '{' {
 			buf = append(buf, s[i:j]...)
 			idx := strings.Index(s[j+2:], "}")
-			if (idx >= 0) {
+			if idx >= 0 {
 				// We have a full ${name} string
 				buf = append(buf, mapping(s[j+2:j+2+idx])...)
-				j += 2+idx
+				j += 2 + idx
 			} else {
 				// We ran out of string (unclosed ${)
 				return string(buf)
@@ -236,6 +240,3 @@ func expandBraceVars(s string, mapping func(string) string) string {
 	}
 	return string(buf) + s[i:]
 }
-
-
-

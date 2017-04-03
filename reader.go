@@ -7,7 +7,7 @@ import (
 	"github.com/coreos/go-systemd/sdjournal"
 )
 
-func ReadRecords(instanceId string, journal *sdjournal.Journal, c chan<- Record, skip uint64) {
+func ReadRecords(instanceId string, journal *sdjournal.Journal, c chan<- Record, skip uint64, includeUnits []string) {
 	record := &Record{}
 
 	termC := MakeTerminateChannel()
@@ -37,7 +37,21 @@ func ReadRecords(instanceId string, journal *sdjournal.Journal, c chan<- Record,
 			skip--
 		} else {
 			record.InstanceId = instanceId
-			c <- *record
+
+			include := true
+			if includeUnits != nil {
+				include = false
+				for _, unit := range includeUnits {
+					if record.SystemdUnit == unit {
+						include = true
+						break
+					}
+				}
+			}
+
+			if include {
+				c <- *record
+			}
 		}
 
 		for {
